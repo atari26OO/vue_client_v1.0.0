@@ -1,12 +1,20 @@
 <template>
-  <div id="client">
+  <div class='client'>
 
     <h1>Client</h1>
 
     <label for='username'>Username:</label>
-    <input type='text' id='username' name='username' :value='username'>
-    <button id='connect' @click='connect'>Connect</button> <!-- jQuery? -->
-    <button id='disconnect' onclick='disconnect()' disabled>Disconnect</button> <!-- jQuery? -->
+    <!--<input type='text' id='username' name='username'>-->
+
+    <select name='username' id='username'>
+      <option value=''></option>
+      <option v-for='user in users' :key='user.uid' :value='user.name'>
+        {{ user.name }} <!--({{ user.role }})-->
+      </option>
+    </select>
+
+    <button id='connect' v-on:click='connect()'>Connect</button> <!-- jQuery? -->
+    <button id='disconnect' v-on:click='disconnect()' disabled>Disconnect</button> <!-- jQuery? -->
 
     <span>Socket Connection: </span>
     <span id='connection_state'>OFFLINE</span>
@@ -14,28 +22,32 @@
     <br/><br/>
 
     <label for='message'>Message:</label>
-    <input type='text' id='message' name='message' width='160' disabled :value='message'>
-    <button id='send' onclick='send()' disabled>Send</button>
+    <input type='text' id='message' name='message' width='160' disabled>
+    <button id='send' v-on:click='send()' disabled>Send</button>
 
     <br/><br/>
 
-    <div id='chat'>{{chat}}</div>
+    <div id='chat'></div>
 
   </div>
 </template>
 
 <script>
+
+// socket io
+import io from 'socket.io-client';
+
 export default {
   name: 'Client',
   props: ['users'],
-  data: function () {
+  data () {
     return {
-      username: '',
-      chat: '',
-      message: '',
       socket: null,
       myTimeout: null
     }
+  },
+  created: function() {
+
   },
   computed: {
 
@@ -43,40 +55,43 @@ export default {
   methods: {
 
     connect: function() {
-      // use the vue way when more time instead of querySelector
-      document.querySelector('#connect').disabled = true;
-      document.querySelector('#disconnect').disabled = false;
-      document.querySelector('#username').disabled = true;
+      var ref = this // vue
 
-      console.log('socket connection: starting...')
-      this.socket = new WebSocket('ws://localhost:3000')
-      //this.socket = new WebSocket(':3000')
+      // connect socket
+      this.socket = io('http://localhost:3000')
 
       // username
       var username = document.querySelector('#username').value;
-      socket.emit('add_user', username);
+      this.socket.emit('add_user', username);
 
       // connection status
-      check_connection_status(socket);
+      ref.check_connection_status(this.socket);
 
       // chat clear
       document.querySelector('#chat').innerHTML = "";
+      //this.$refs.chat.innerHTML = "";
 
       // events
-      this.socket.onopen = function(event) {
-        console.log(event)
-        console.log('websocket server: connected')
-      }
+      this.socket.on('connect', function(data) {
 
-      this.socket.onmessage = function(event) {
-        chat_add(event.data);
-      }
-
-      this.socket.onsocket_disconnect = function(event) {
-        disconnect();
-      }
-
-      this.socket.ondisconnect = function(event) {
+      });
+      this.socket.on('another_client', function(data) {
+        ref.chat_add(data);
+      });
+      this.socket.on('message', function(data) {
+        console.log(data);
+        ref.chat_add(data);
+      });
+      this.socket.on('from_server', function(data) {
+        ref.chat_add(data);
+      });
+      this.socket.on('from_admin', function(data) {
+        ref.chat_add(data);
+      });
+      this.socket.on('socket_disconnect', function() {
+        ref.disconnect();
+      });
+      this.socket.on('disconnect', function() {
         document.querySelector('#connect').disabled = false;
         document.querySelector('#disconnect').disabled = true;
         document.querySelector('#username').disabled = false;
@@ -84,52 +99,58 @@ export default {
         document.querySelector('#send').disabled = true;
         // the lines below are here in case of a forced server shutdown
         document.querySelector('#connection_state').innerHTML = 'OFFLINE';
-        clearTimeout(myTimeout);
-      }
+        clearTimeout(this.myTimeout);
+      });
 
-    },
-
-    check_connection_status: function(socket) {
-      var connection_status;
-      if (socket.connected) {
-        connection_status = 'ONLINE';
-        // message are able to send
-        document.querySelector('#message').disabled = false;
-        document.querySelector('#send').disabled = false;
-      } else {
-        connection_status = 'OFFLINE';
-        clearTimeout(myTimeout);
-      }
-      document.querySelector('#connection_state').innerHTML = connection_status;
-      try {
-        myTimeout = setTimeout(function() {check_connection_status(socket);}, 1000); // hardcoded 1000ms
-      }
-      catch(err) {
-        clearTimeout(myTimeout);
-      }
     },
 
     disconnect: function() {
-      socket.disconnect();
+      this.socket.disconnect();
     },
 
     send: function() {
+      var ref = this // vue
       // get value from message box
       var message = document.querySelector('#message').value;
-      socket.emit('message', message);
+      this.socket.emit('message', message);
       // use the below code to add message to client's own chat box
-      chat_add('me: ' + message); // harcoded the 'me'
+      ref.chat_add('me: ' + message); // harcoded the 'me'
       // clear value from message box
       document.querySelector('#message').value = '';
     },
 
     chat_add: function(chat) {
       document.querySelector('#chat').innerHTML =
-      document.querySelector('#chat').innerHTML + '<br/><br/>' + chat;
-    }
+        document.querySelector('#chat').innerHTML + '<br/><br/>' + chat;
+      //this.$refs.chat.innerHTML =
+      //  this.$refs.chat.innerHTML + '<br/><br/>' + chat;
+    },
 
-  },
-  created: function() {
+    check_connection_status: function(socket) {
+      var ref = this // vue
+      var connection_status;
+      if (socket.connected) {
+        connection_status = 'ONLINE';
+        // message are able to send
+        document.querySelector('#connect').disabled = true;
+        document.querySelector('#disconnect').disabled = false;
+        document.querySelector('#username').disabled = true;
+        document.querySelector('#message').disabled = false;
+        document.querySelector('#send').disabled = false;
+      } else {
+        connection_status = 'OFFLINE';
+        clearTimeout(this.myTimeout);
+      }
+      document.querySelector('#connection_state').innerHTML = connection_status;
+      try {
+        this.myTimeout = setTimeout(function() {
+          ref.check_connection_status(socket);
+        }, 1000); // hardcoded 1000ms
+      }
+      catch(err) {
+        clearTimeout(this.myTimeout);
+      }
+    }
 
   }
 }
@@ -137,10 +158,8 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
-  body, table {
+  .client {
     font-family: "Lucida Console", "Courier New", monospace;
-  }
-  body {
     padding: 32px;
   }
   h1 {

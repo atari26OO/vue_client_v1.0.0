@@ -1,5 +1,5 @@
 {
-  "name": "vuehorse",
+  "name": "vuesocket",
   "version": "1.0.0",
   "description": "A Vue.js project",
   "author": "L",
@@ -10,6 +10,7 @@
     "build": "node build/build.js"
   },
   "dependencies": {
+    "socket.io-client": "^4.4.1",
     "vue": "^2.5.2",
     "vue-socket.io": "^3.0.10"
   },

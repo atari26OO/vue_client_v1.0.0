@@ -1,4 +1,4 @@
-# vuehorse
+# vuesocket
 
 > A Vue.js project
 
